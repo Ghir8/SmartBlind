@@ -3,7 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include <Config.h>
 
-//#define LED_BUILTIN 2
+#define LED_BUILTIN 2
 #define INPUT_PIN_UP 25
 #define INPUT_PIN_DOWN 26
 #define RELE_PIN_UP 12
@@ -22,7 +22,7 @@ struct {
 // default timing settings
 float secondsToClose = DEFAULT_SECONDS_TO_CLOSE;
 float secondsToOpen = DEFAULT_SECONDS_TO_OPEN;
-unsigned int milliesPerPercentClose = (secondsToClose * 1000) / 100;
+unsigned int millisPerPercentClose = (secondsToClose * 1000) / 100;
 unsigned int millisPerPercentOpen = (secondsToOpen * 1000) / 100;
 
 // blind position / state vars
@@ -45,7 +45,7 @@ void startSpinning(double newPosition){
     unsigned long currentMillis = millis();
 
     // calculate spin cycle length (ms)
-    unsigned int millisPerPercent = desiredPosition > currentPosition ? millisPerPercentOpen : milliesPerPercentClose;
+    unsigned int millisPerPercent = desiredPosition > currentPosition ? millisPerPercentOpen : millisPerPercentClose;
     interval = (long)(abs(desiredPosition - currentPosition) * millisPerPercent);
 
     // set state vars
@@ -79,30 +79,30 @@ void stopSpinning(){
   digitalWrite(LED_BUILTIN, LOW);
 }
 
-void inputButton(unsigned long inizio, double cP){
+void inputButton(unsigned long startInput, double curPosInput){
   spinning = true;
-  unsigned long trascorso;
+  unsigned long endInput;
   double deltaT;
   if (digitalRead(INPUT_PIN_UP)) { // Opening
     direction = -1;
     while (digitalRead(INPUT_PIN_UP)) {
-       trascorso= millis();
+       endInput = millis();
     }
-    deltaT = trascorso - inizio;
-    cP= cP +((deltaT)/(secondsToOpen*1000))*100;
-    cP = cP > 100 ? 100 : cP;
-    desiredPosition = cP;
-    currentPosition = cP;
+    deltaT = endInput - startInput;
+    curPosInput= curPosInput +((deltaT)/(secondsToOpen*1000))*100;
+    curPosInput = curPosInput > 100 ? 100 : curPosInput;
+    desiredPosition = curPosInput;
+    currentPosition = curPosInput;
   }else{ // Closing
     direction = 1;
     while (digitalRead(INPUT_PIN_DOWN)) {
-       trascorso= millis();
+       endInput = millis();
     }
-    deltaT = trascorso - inizio;
-    cP= cP -((deltaT)/(secondsToOpen*1000))*100;
-    cP = cP < 0 ? 0 : cP;
-    desiredPosition = cP;
-    currentPosition = cP;
+    deltaT = endInput - startInput;
+    curPosInput= curPosInput -((deltaT)/(secondsToOpen*1000))*100;
+    curPosInput = curPosInput < 0 ? 0 : curPosInput;
+    desiredPosition = curPosInput;
+    currentPosition = curPosInput;
   }
 
   stopSpinning();
@@ -144,7 +144,7 @@ void runServer(){
     if (request->hasParam("secondsToClose")) {
       secondsToClose = request->getParam("secondsToClose")->value().toFloat();
       EEPROM.put(eepromAddresses.secondsToClose, secondsToClose);
-      milliesPerPercentClose = (secondsToClose * 1000) / 100;
+      millisPerPercentClose = (secondsToClose * 1000) / 100;
     }
     if (request->hasParam("secondsToOpen")) {
       secondsToOpen = request->getParam("secondsToOpen")->value().toFloat();
@@ -211,7 +211,7 @@ void setup(){
   }
 
   // milliseconds of rotation per 1% change in blinds
-  milliesPerPercentClose = (secondsToClose * 1000) / 100;
+  millisPerPercentClose = (secondsToClose * 1000) / 100;
   millisPerPercentOpen = (secondsToOpen * 1000) / 100;
 
   runServer();
@@ -219,6 +219,8 @@ void setup(){
 
 void loop() {
   unsigned long currentMillis = millis();
+
+  // check user input
   if(digitalRead(INPUT_PIN_UP) || digitalRead(INPUT_PIN_DOWN)){
     digitalWrite(RELE_PIN_UP, HIGH);
     digitalWrite(RELE_PIN_DOWN, HIGH);
@@ -228,11 +230,14 @@ void loop() {
   if (spinning){
     // calculate current position
     double percentCompleted = ((double)(currentMillis - previousMillis))/((double)interval);
-    //percentCompleted = (currentMillis - previousMillis) < 0 ? 0 : percentCompleted;
+
+    // solution for data inconsistency before currentPosition's calculus 
     if((int)(currentMillis - previousMillis) < 0){
       percentCompleted = 0;
     }
     currentPosition = (percentCompleted * (desiredPosition-startingPosition)) + startingPosition;
+
+    // check user input
     if(digitalRead(INPUT_PIN_UP) || digitalRead(INPUT_PIN_DOWN)){
       digitalWrite(RELE_PIN_UP, HIGH);
       digitalWrite(RELE_PIN_DOWN, HIGH);
