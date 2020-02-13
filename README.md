@@ -9,6 +9,7 @@ Il controller riceverà le istruzioni via WiFi e azionerà un motore bifase per 
 * ESP 32
 * 2 Relè da 220V
 * 2 Step-down da 220V a 3V
+* Opzionale, un RaspberryPI per fare da server
 
 ### Software preparatorio
 La preparazione del layer software è stata tratta dalla repo:
