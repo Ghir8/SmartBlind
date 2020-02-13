@@ -1,8 +1,8 @@
 /**
  * WiFi Config
  */
-#define WIFI_SSID "WiFi Ghirotto"
-#define WIFI_PASSWORD "Ikm72rsa"
+#define WIFI_SSID "YOUR SSID NAME"
+#define WIFI_PASSWORD "YOUR PASSWORD"
 //#define HOSTNAME "smart-blinds"
 
 /**
