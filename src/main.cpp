@@ -5,7 +5,7 @@
 
 #define LED_BUILTIN 2
 #define INPUT_PIN_UP 25
-#define INPUT_PIN_DOWN 26
+#define INPUT_PIN_DOWN 27
 #define RELE_PIN_UP 12
 #define RELE_PIN_DOWN 13
 
@@ -42,27 +42,37 @@ long interval = 0;
 void startSpinning(double newPosition){
   if (newPosition != desiredPosition || newPosition != currentPosition) {
     desiredPosition = newPosition;
+    Serial.print("current position: ");
+    Serial.println(currentPosition);
+    Serial.print("desired position: ");
+    Serial.println(desiredPosition);
     unsigned long currentMillis = millis();
 
     // calculate spin cycle length (ms)
     unsigned int millisPerPercent = desiredPosition > currentPosition ? millisPerPercentOpen : millisPerPercentClose;
     interval = (long)(abs(desiredPosition - currentPosition) * millisPerPercent);
+    Serial.print("calculated interval: ");
+    Serial.println(interval);
 
     // set state vars
     direction = desiredPosition > currentPosition ? 1 : -1;
     previousMillis = currentMillis;
     spinning = true;
     startingPosition = currentPosition;
+    Serial.print("calculated direction: ");
+    Serial.println(direction);
 
     digitalWrite(LED_BUILTIN, HIGH);
 
     // closing
     if (direction > 0) {
+      Serial.println("closing");
       digitalWrite(RELE_PIN_DOWN, HIGH);
       digitalWrite(RELE_PIN_UP, LOW);
     }
     // opening
     if (direction < 0) {
+      Serial.println("closing");
       digitalWrite(RELE_PIN_UP, HIGH);
       digitalWrite(RELE_PIN_DOWN, LOW);
     }
@@ -72,46 +82,97 @@ void startSpinning(double newPosition){
 void stopSpinning(){
   digitalWrite(RELE_PIN_UP, HIGH);
   digitalWrite(RELE_PIN_DOWN, HIGH);
-  spinning = false;
   currentPosition = desiredPosition;
   EEPROM.put(eepromAddresses.currentPosition, currentPosition);
   EEPROM.commit();
+  spinning = false;
+  Serial.println("finished spinning!");
   digitalWrite(LED_BUILTIN, LOW);
 }
 
-void inputButton(unsigned long startInput, double curPosInput){
+bool flag = false;
+
+void doubleTap(double deltaT, int direction){
+  if(deltaT > 500 && deltaT < 1000){
+    Serial.println("flag TRUE");
+    flag = true;
+  } else if(deltaT > 1000 && flag){
+    double newPosition = direction > 0 ? 0 : 100;
+    Serial.print("newPosition ");
+    Serial.println(newPosition);
+    flag = false;
+    delay(1000);
+    startSpinning(newPosition);
+  } else {
+    Serial.println("flag FALSE");
+    flag = false;
+  }
+}
+
+void inputUp(unsigned long startInput, double curPosInput){
   spinning = true;
   unsigned long endInput;
   double deltaT;
-  if (digitalRead(INPUT_PIN_UP)) { // Opening
-    direction = -1;
-    while (digitalRead(INPUT_PIN_UP)) {
-       endInput = millis();
-    }
-    deltaT = endInput - startInput;
-    curPosInput= curPosInput +((deltaT)/(secondsToOpen*1000))*100;
-    curPosInput = curPosInput > 100 ? 100 : curPosInput;
-    desiredPosition = curPosInput;
-    currentPosition = curPosInput;
-  }else{ // Closing
-    direction = 1;
-    while (digitalRead(INPUT_PIN_DOWN)) {
-       endInput = millis();
-    }
-    deltaT = endInput - startInput;
-    curPosInput= curPosInput -((deltaT)/(secondsToOpen*1000))*100;
-    curPosInput = curPosInput < 0 ? 0 : curPosInput;
-    desiredPosition = curPosInput;
-    currentPosition = curPosInput;
+  Serial.println("direction: UP");
+  direction = -1;
+  do{
+    delay(50);
+    //endInput = millis();
+  }while (digitalRead(INPUT_PIN_UP) == HIGH);
+  endInput = millis();
+  Serial.print("endInput: ");
+  Serial.println(endInput);
+  Serial.print("startInput: ");
+  Serial.println(startInput);
+  deltaT = endInput - startInput;
+  if(deltaT <= 50){
+    return;
   }
+  curPosInput= curPosInput +((deltaT)/(secondsToOpen*1000))*100;
+  curPosInput = curPosInput > 100 ? 100 : curPosInput;
+  desiredPosition = curPosInput;
+  currentPosition = curPosInput;
+  doubleTap(deltaT, direction);
+  Serial.print("UP - deltaT: ");
+  Serial.println(deltaT);
+  Serial.print("UP - current position input: ");
+  Serial.println(curPosInput);
+}
 
-  stopSpinning();
+void inputDown(unsigned long startInput, double curPosInput){
+  spinning = true;
+  unsigned long endInput;
+  double deltaT;
+  Serial.println("direction: DOWN");
+  direction = 1;
+  do{
+    delay(50);
+  }while (digitalRead(INPUT_PIN_DOWN) == HIGH);
+  endInput = millis();
+  deltaT = endInput - startInput;
+  if(deltaT <= 50){
+    return;
+  }
+  Serial.print("endInput: ");
+  Serial.println(endInput);
+  Serial.print("startInput: ");
+  Serial.println(startInput);
+  curPosInput= curPosInput -((deltaT)/(secondsToOpen*1000))*100;
+  curPosInput = curPosInput < 0 ? 0 : curPosInput;
+  desiredPosition = curPosInput;
+  currentPosition = curPosInput;
+  doubleTap(deltaT, direction);
+  Serial.print("DOWN - deltaT: ");
+  Serial.println(deltaT);
+  Serial.print("DOWN - current position input: ");
+  Serial.println(curPosInput);
 }
 
 void runServer(){
   // get position
   server.on("/position", HTTP_GET, [] (AsyncWebServerRequest *request) {
     digitalWrite(LED_BUILTIN, LOW);
+    Serial.println("Request /position");
     request->send(200, "text/plain", String(currentPosition));
     digitalWrite(LED_BUILTIN, HIGH);
   });
@@ -119,7 +180,9 @@ void runServer(){
   // set position with ?position=N (0 to 100)
   server.on("/set", HTTP_GET, [] (AsyncWebServerRequest *request) {
     digitalWrite(LED_BUILTIN, LOW);
+    Serial.print("REQUEST /SET");
     if (request->hasParam("position")) {
+      Serial.println(request->getParam("position")->value());
       double newPosition = request->getParam("position")->value().toDouble();
       startSpinning(newPosition);
     }
@@ -130,7 +193,9 @@ void runServer(){
   // get state
   server.on("/state", HTTP_GET, [] (AsyncWebServerRequest *request) {
     digitalWrite(LED_BUILTIN, LOW);
+    Serial.print("Request /state");
     int state = spinning ? (direction == -1 ? 0 : 1) : 2;
+    Serial.println(String(state));
     request->send(200, "text/plain", String(state));
     digitalWrite(LED_BUILTIN, HIGH);
   });
@@ -191,9 +256,13 @@ void setup(){
   if (WiFi.waitForConnectResult() != WL_CONNECTED) {
     while(WiFi.waitForConnectResult() != WL_CONNECTED){
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      Serial.print(".");
       delay(100);
     }
   }
+  Serial.println("");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
 
   // get stored settings or use defaults
   bool initialized = false;
@@ -214,38 +283,76 @@ void setup(){
   millisPerPercentClose = (secondsToClose * 1000) / 100;
   millisPerPercentOpen = (secondsToOpen * 1000) / 100;
 
+  Serial.print("Initial position: ");
+  Serial.println(currentPosition);
+  Serial.print("Seconds to close: ");
+  Serial.println(secondsToClose);
+  Serial.print("Seconds to open: ");
+  Serial.println(secondsToOpen);
+
   runServer();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // check user input
-  if(digitalRead(INPUT_PIN_UP) || digitalRead(INPUT_PIN_DOWN)){
-    digitalWrite(RELE_PIN_UP, HIGH);
-    digitalWrite(RELE_PIN_DOWN, HIGH);
-    inputButton(currentMillis, currentPosition);
-  }
-
   if (spinning){
     // calculate current position
     double percentCompleted = ((double)(currentMillis - previousMillis))/((double)interval);
 
-    // solution for data inconsistency before currentPosition's calculus 
+    // solution for data inconsistency before currentPosition's calculus
     if((int)(currentMillis - previousMillis) < 0){
       percentCompleted = 0;
     }
     currentPosition = (percentCompleted * (desiredPosition-startingPosition)) + startingPosition;
 
     // check user input
-    if(digitalRead(INPUT_PIN_UP) || digitalRead(INPUT_PIN_DOWN)){
-      digitalWrite(RELE_PIN_UP, HIGH);
-      digitalWrite(RELE_PIN_DOWN, HIGH);
-      inputButton(currentMillis, currentPosition);
+    if (direction < 0){
+      if(digitalRead(INPUT_PIN_UP) == HIGH){
+        digitalWrite(RELE_PIN_UP, HIGH);
+        digitalWrite(RELE_PIN_DOWN, HIGH);
+        Serial.println("Input UP from spinning");
+        inputUp(currentMillis, currentPosition);
+      }
+      if(digitalRead(INPUT_PIN_DOWN) == HIGH){
+        digitalWrite(RELE_PIN_UP, HIGH);
+        digitalWrite(RELE_PIN_DOWN, HIGH);
+        Serial.println("Input DOWN from spinning");
+        inputDown(currentMillis, currentPosition);
+      }
+    }else if(direction > 0){
+      if(digitalRead(INPUT_PIN_DOWN) == HIGH){
+        digitalWrite(RELE_PIN_UP, HIGH);
+        digitalWrite(RELE_PIN_DOWN, HIGH);
+        Serial.println("Input DOWN from spinning");
+        inputDown(currentMillis, currentPosition);
+      }
+      if(digitalRead(INPUT_PIN_UP) == HIGH){
+        if(digitalRead(INPUT_PIN_DOWN) == HIGH){
+          digitalWrite(RELE_PIN_UP, HIGH);
+          digitalWrite(RELE_PIN_DOWN, HIGH);
+          Serial.println("Input UP from spinning");
+          inputUp(currentMillis, currentPosition);
+        }
+      }
     }
     // if position has been reached or is out of range, stop spinning
     if (currentPosition == desiredPosition || percentCompleted > 1 || currentPosition < 0 || currentPosition > 100){
       stopSpinning();
     }
+  }else{
+    // check user input
+    if(digitalRead(INPUT_PIN_UP) == HIGH){
+      digitalWrite(RELE_PIN_UP, HIGH);
+      digitalWrite(RELE_PIN_DOWN, HIGH);
+      Serial.println("Input UP form loop");
+      inputUp(currentMillis, currentPosition);
+    }
+  }
+  if(digitalRead(INPUT_PIN_DOWN) == HIGH){
+    digitalWrite(RELE_PIN_UP, HIGH);
+    digitalWrite(RELE_PIN_DOWN, HIGH);
+    Serial.println("Input DOWN from loop");
+    inputDown(currentMillis, currentPosition);
   }
 }
