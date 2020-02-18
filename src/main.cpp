@@ -6,8 +6,11 @@
 #define LED_BUILTIN 2
 #define INPUT_PIN_UP 25
 #define INPUT_PIN_DOWN 27
-#define RELE_PIN_UP 12
-#define RELE_PIN_DOWN 13
+#define RELAY_PIN_UP 12
+#define RELAY_PIN_DOWN 13
+
+#define FIRST_TAP 500
+#define SECOND_TAP 1000
 
 AsyncWebServer server(80);
 
@@ -67,21 +70,21 @@ void startSpinning(double newPosition){
     // closing
     if (direction > 0) {
       Serial.println("closing");
-      digitalWrite(RELE_PIN_DOWN, HIGH);
-      digitalWrite(RELE_PIN_UP, LOW);
+      digitalWrite(RELAY_PIN_DOWN, HIGH);
+      digitalWrite(RELAY_PIN_UP, LOW);
     }
     // opening
     if (direction < 0) {
       Serial.println("closing");
-      digitalWrite(RELE_PIN_UP, HIGH);
-      digitalWrite(RELE_PIN_DOWN, LOW);
+      digitalWrite(RELAY_PIN_UP, HIGH);
+      digitalWrite(RELAY_PIN_DOWN, LOW);
     }
   }
 }
 
 void stopSpinning(){
-  digitalWrite(RELE_PIN_UP, HIGH);
-  digitalWrite(RELE_PIN_DOWN, HIGH);
+  digitalWrite(RELAY_PIN_UP, HIGH);
+  digitalWrite(RELAY_PIN_DOWN, HIGH);
   currentPosition = desiredPosition;
   EEPROM.put(eepromAddresses.currentPosition, currentPosition);
   EEPROM.commit();
@@ -93,10 +96,10 @@ void stopSpinning(){
 bool flag = false;
 
 void doubleTap(double deltaT, int direction){
-  if(deltaT > 500 && deltaT < 1000){
+  if(deltaT > FIRST_TAP && deltaT < SECOND_TAP){
     Serial.println("flag TRUE");
     flag = true;
-  } else if(deltaT > 1000 && flag){
+  } else if(deltaT > SECOND_TAP && flag){
     double newPosition = direction > 0 ? 0 : 100;
     Serial.print("newPosition ");
     Serial.println(newPosition);
@@ -240,10 +243,10 @@ void setup(){
 
   // initialize LED and pins
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(RELE_PIN_UP, OUTPUT);
-  pinMode(RELE_PIN_DOWN, OUTPUT);
-  digitalWrite(RELE_PIN_UP,HIGH);
-  digitalWrite(RELE_PIN_DOWN, HIGH);
+  pinMode(RELAY_PIN_UP, OUTPUT);
+  pinMode(RELAY_PIN_DOWN, OUTPUT);
+  digitalWrite(RELAY_PIN_UP,HIGH);
+  digitalWrite(RELAY_PIN_DOWN, HIGH);
 
   //initialize INPUT pin
   pinMode(INPUT_PIN_UP, INPUT_PULLDOWN);
@@ -309,28 +312,28 @@ void loop() {
     // check user input
     if (direction < 0){
       if(digitalRead(INPUT_PIN_UP) == HIGH){
-        digitalWrite(RELE_PIN_UP, HIGH);
-        digitalWrite(RELE_PIN_DOWN, HIGH);
+        digitalWrite(RELAY_PIN_UP, HIGH);
+        digitalWrite(RELAY_PIN_DOWN, HIGH);
         Serial.println("Input UP from spinning");
         inputUp(currentMillis, currentPosition);
       }
       if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-        digitalWrite(RELE_PIN_UP, HIGH);
-        digitalWrite(RELE_PIN_DOWN, HIGH);
+        digitalWrite(RELAY_PIN_UP, HIGH);
+        digitalWrite(RELAY_PIN_DOWN, HIGH);
         Serial.println("Input DOWN from spinning");
         inputDown(currentMillis, currentPosition);
       }
     }else if(direction > 0){
       if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-        digitalWrite(RELE_PIN_UP, HIGH);
-        digitalWrite(RELE_PIN_DOWN, HIGH);
+        digitalWrite(RELAY_PIN_UP, HIGH);
+        digitalWrite(RELAY_PIN_DOWN, HIGH);
         Serial.println("Input DOWN from spinning");
         inputDown(currentMillis, currentPosition);
       }
       if(digitalRead(INPUT_PIN_UP) == HIGH){
         if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-          digitalWrite(RELE_PIN_UP, HIGH);
-          digitalWrite(RELE_PIN_DOWN, HIGH);
+          digitalWrite(RELAY_PIN_UP, HIGH);
+          digitalWrite(RELAY_PIN_DOWN, HIGH);
           Serial.println("Input UP from spinning");
           inputUp(currentMillis, currentPosition);
         }
@@ -343,15 +346,15 @@ void loop() {
   }else{
     // check user input
     if(digitalRead(INPUT_PIN_UP) == HIGH){
-      digitalWrite(RELE_PIN_UP, HIGH);
-      digitalWrite(RELE_PIN_DOWN, HIGH);
+      digitalWrite(RELAY_PIN_UP, HIGH);
+      digitalWrite(RELAY_PIN_DOWN, HIGH);
       Serial.println("Input UP form loop");
       inputUp(currentMillis, currentPosition);
     }
   }
   if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-    digitalWrite(RELE_PIN_UP, HIGH);
-    digitalWrite(RELE_PIN_DOWN, HIGH);
+    digitalWrite(RELAY_PIN_UP, HIGH);
+    digitalWrite(RELAY_PIN_DOWN, HIGH);
     Serial.println("Input DOWN from loop");
     inputDown(currentMillis, currentPosition);
   }
