@@ -16,6 +16,10 @@ La preparazione del layer software è stata tratta dalla repo:
 
 https://github.com/skarim/arduino-homekit-blinds
 
+Che a sua volta sfrutta come base 
+
+https://github.com/Nicnl/homebridge-minimal-http-blinds
+
 Il Codice è stato modificato per adattarsi alle esigenze richieste.
 
 
@@ -28,9 +32,14 @@ I pin di input-output sono direttamente nel file `/src/main.cpp` e basta modific
 #define LED_BUILTIN 2
 #define INPUT_PIN_UP 25
 #define INPUT_PIN_DOWN 26
-#define RELE_PIN_UP 12
-#define RELE_PIN_DOWN 13
+#define RELAY_PIN_UP 12
+#define RELAY_PIN_DOWN 13
+
+#define FIRST_TAP 500
+#define SECOND_TAP 1000
 ```
+
+`FIRST_TAP` e `SECOND_TAP` sono la durata dei due tocchi consecutivi sui pulsanti e usate nella funzione `doubleTap` che invoca `startSpinning` a 0 o 100 in base al pulsante che ha invocato la funzione.
 
 ## Connessione ad HomeKit
 
