@@ -121,7 +121,7 @@ void inputUp(unsigned long startInput, double curPosInput){
   unsigned long endInput;
   double deltaT;
   Serial.println("direction: UP");
-  direction = -1;
+  direction = 1;
   do{
     delay(50);
     //endInput = millis();
@@ -158,7 +158,7 @@ void inputDown(unsigned long startInput, double curPosInput){
   unsigned long endInput;
   double deltaT;
   Serial.println("direction: DOWN");
-  direction = 1;
+  direction = -1;
   do{
     delay(50);
   }while (digitalRead(INPUT_PIN_DOWN) == 0);
