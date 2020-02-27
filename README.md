@@ -6,7 +6,7 @@ SmartBlind è un controller per tapparelle integrato con la piattafoma HAP (http
 Il controller riceverà le istruzioni via WiFi e azionerà un motore bifase per tirare su o giù le tapparelle e controllerà gli eventuali input manuali dell'utente mettendosi a valle degli interruttori a muro e quindi intecettando gli azionamenti degli stessi.
 
 ### Hardware
-* ESP 32
+* ESP 32 (NodeMCU di AzDelivery, per lo [schema](https://cdn.shopify.com/s/files/1/1509/1638/files/ESP_-_32_NodeMCU_Developmentboard_Pinout_Diagram.jpg?4479111012146266271))
 * 2 Relay da 3/5V DC a contatto puro (per 220V AC)
 * 2 230v/110v AC Mains Detection Module (in via teorica si potrebbero usare anche dei relay da 220V AC, ma danno problemi di tipo magnetico)
 * Opzionale, un RaspberryPI per fare da server
