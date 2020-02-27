@@ -4,10 +4,10 @@
 #include <Config.h>
 
 #define LED_BUILTIN 2
-#define INPUT_PIN_UP 25
-#define INPUT_PIN_DOWN 27
-#define RELAY_PIN_UP 12
-#define RELAY_PIN_DOWN 13
+#define INPUT_PIN_UP 32
+#define INPUT_PIN_DOWN 33
+#define RELAY_PIN_UP 27
+#define RELAY_PIN_DOWN 26
 
 #define FIRST_TAP 500
 #define SECOND_TAP 1000
@@ -75,7 +75,7 @@ void startSpinning(double newPosition){
     }
     // opening
     if (direction < 0) {
-      Serial.println("closing");
+      Serial.println("opening");
       digitalWrite(RELAY_PIN_UP, HIGH);
       digitalWrite(RELAY_PIN_DOWN, LOW);
     }
@@ -94,21 +94,25 @@ void stopSpinning(){
 }
 
 bool flag = false;
+bool dTap = false;
 
 void doubleTap(double deltaT, int direction){
   if(deltaT > FIRST_TAP && deltaT < SECOND_TAP){
     Serial.println("flag TRUE");
     flag = true;
+    dTap = false;
   } else if(deltaT > SECOND_TAP && flag){
     double newPosition = direction > 0 ? 0 : 100;
     Serial.print("newPosition ");
     Serial.println(newPosition);
     flag = false;
+    dTap = true;
     delay(1000);
     startSpinning(newPosition);
   } else {
     Serial.println("flag FALSE");
     flag = false;
+    dTap = false;
   }
 }
 
@@ -121,7 +125,7 @@ void inputUp(unsigned long startInput, double curPosInput){
   do{
     delay(50);
     //endInput = millis();
-  }while (digitalRead(INPUT_PIN_UP) == HIGH);
+  }while (digitalRead(INPUT_PIN_UP) == 0);
   endInput = millis();
   Serial.print("endInput: ");
   Serial.println(endInput);
@@ -129,6 +133,7 @@ void inputUp(unsigned long startInput, double curPosInput){
   Serial.println(startInput);
   deltaT = endInput - startInput;
   if(deltaT <= 50){
+    stopSpinning();
     return;
   }
   curPosInput= curPosInput +((deltaT)/(secondsToOpen*1000))*100;
@@ -140,6 +145,12 @@ void inputUp(unsigned long startInput, double curPosInput){
   Serial.println(deltaT);
   Serial.print("UP - current position input: ");
   Serial.println(curPosInput);
+  if (dTap) {
+    dTap = false;
+    return;
+  }else{
+    stopSpinning();
+  }
 }
 
 void inputDown(unsigned long startInput, double curPosInput){
@@ -150,16 +161,17 @@ void inputDown(unsigned long startInput, double curPosInput){
   direction = 1;
   do{
     delay(50);
-  }while (digitalRead(INPUT_PIN_DOWN) == HIGH);
+  }while (digitalRead(INPUT_PIN_DOWN) == 0);
   endInput = millis();
-  deltaT = endInput - startInput;
-  if(deltaT <= 50){
-    return;
-  }
   Serial.print("endInput: ");
   Serial.println(endInput);
   Serial.print("startInput: ");
   Serial.println(startInput);
+  deltaT = endInput - startInput;
+  if(deltaT <= 50){
+    stopSpinning();
+    return;
+  }
   curPosInput= curPosInput -((deltaT)/(secondsToOpen*1000))*100;
   curPosInput = curPosInput < 0 ? 0 : curPosInput;
   desiredPosition = curPosInput;
@@ -169,6 +181,12 @@ void inputDown(unsigned long startInput, double curPosInput){
   Serial.println(deltaT);
   Serial.print("DOWN - current position input: ");
   Serial.println(curPosInput);
+  if (dTap) {
+    dTap = false;
+    return;
+  }else{
+    stopSpinning();
+  }
 }
 
 void runServer(){
@@ -249,8 +267,8 @@ void setup(){
   digitalWrite(RELAY_PIN_DOWN, HIGH);
 
   //initialize INPUT pin
-  pinMode(INPUT_PIN_UP, INPUT_PULLDOWN);
-  pinMode(INPUT_PIN_DOWN, INPUT_PULLDOWN);
+  pinMode(INPUT_PIN_UP, INPUT_PULLUP);
+  pinMode(INPUT_PIN_DOWN, INPUT_PULLUP);
 
   // wifi connect
   WiFi.mode(WIFI_STA);
@@ -310,33 +328,19 @@ void loop() {
     currentPosition = (percentCompleted * (desiredPosition-startingPosition)) + startingPosition;
 
     // check user input
-    if (direction < 0){
-      if(digitalRead(INPUT_PIN_UP) == HIGH){
+    if (direction > 0){
+      if(digitalRead(INPUT_PIN_DOWN) == 0){
+        digitalWrite(RELAY_PIN_UP, HIGH);
+        digitalWrite(RELAY_PIN_DOWN, HIGH);
+        Serial.println("Input DOWN from spinning");
+        inputDown(currentMillis, currentPosition);
+      }
+    }else if(direction < 0){
+      if(digitalRead(INPUT_PIN_UP) == 0){
         digitalWrite(RELAY_PIN_UP, HIGH);
         digitalWrite(RELAY_PIN_DOWN, HIGH);
         Serial.println("Input UP from spinning");
         inputUp(currentMillis, currentPosition);
-      }
-      if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-        digitalWrite(RELAY_PIN_UP, HIGH);
-        digitalWrite(RELAY_PIN_DOWN, HIGH);
-        Serial.println("Input DOWN from spinning");
-        inputDown(currentMillis, currentPosition);
-      }
-    }else if(direction > 0){
-      if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-        digitalWrite(RELAY_PIN_UP, HIGH);
-        digitalWrite(RELAY_PIN_DOWN, HIGH);
-        Serial.println("Input DOWN from spinning");
-        inputDown(currentMillis, currentPosition);
-      }
-      if(digitalRead(INPUT_PIN_UP) == HIGH){
-        if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-          digitalWrite(RELAY_PIN_UP, HIGH);
-          digitalWrite(RELAY_PIN_DOWN, HIGH);
-          Serial.println("Input UP from spinning");
-          inputUp(currentMillis, currentPosition);
-        }
       }
     }
     // if position has been reached or is out of range, stop spinning
@@ -345,17 +349,17 @@ void loop() {
     }
   }else{
     // check user input
-    if(digitalRead(INPUT_PIN_UP) == HIGH){
+    if(digitalRead(INPUT_PIN_UP) == 0){
       digitalWrite(RELAY_PIN_UP, HIGH);
       digitalWrite(RELAY_PIN_DOWN, HIGH);
       Serial.println("Input UP form loop");
       inputUp(currentMillis, currentPosition);
     }
-  }
-  if(digitalRead(INPUT_PIN_DOWN) == HIGH){
-    digitalWrite(RELAY_PIN_UP, HIGH);
-    digitalWrite(RELAY_PIN_DOWN, HIGH);
-    Serial.println("Input DOWN from loop");
-    inputDown(currentMillis, currentPosition);
+    if(digitalRead(INPUT_PIN_DOWN) == 0){
+      digitalWrite(RELAY_PIN_UP, HIGH);
+      digitalWrite(RELAY_PIN_DOWN, HIGH);
+      Serial.println("Input DOWN from loop");
+      inputDown(currentMillis, currentPosition);
+    }
   }
 }
