@@ -30,10 +30,10 @@ Nel file `/lib/config.h` possono essere inserite le credenziali di accesso al Wi
 I pin di input-output sono direttamente nel file `/src/main.cpp` e basta modificare le linee:
 ```
 #define LED_BUILTIN 2
-#define INPUT_PIN_UP 25
-#define INPUT_PIN_DOWN 26
-#define RELAY_PIN_UP 12
-#define RELAY_PIN_DOWN 13
+#define INPUT_PIN_UP 32
+#define INPUT_PIN_DOWN 33
+#define RELAY_PIN_UP 27
+#define RELAY_PIN_DOWN 26
 
 #define FIRST_TAP 500
 #define SECOND_TAP 1000
