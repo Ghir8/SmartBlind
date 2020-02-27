@@ -8,7 +8,7 @@ Il controller riceverà le istruzioni via WiFi e azionerà un motore bifase per 
 ### Hardware
 * ESP 32
 * 2 Relay da 3/5V DC a contatto puro (per 220V AC)
-* 2 Relay da 220V AC a contatto puro
+* 2 230v/110v AC Mains Detection Module (in via teorica si potrebbero usare anche dei relay da 220V AC, ma danno problemi di tipo magnetico)
 * Opzionale, un RaspberryPI per fare da server
 
 ### Software preparatorio
