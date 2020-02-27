@@ -11,6 +11,8 @@ Il controller riceverà le istruzioni via WiFi e azionerà un motore bifase per 
 * 2 230v/110v AC Mains Detection Module (in via teorica si potrebbero usare anche dei relay da 220V AC, ma danno problemi di tipo magnetico)
 * Opzionale, un RaspberryPI per fare da server
 
+Lo schema del circuito è riportato nel file .png .
+
 ### Software preparatorio
 La preparazione del layer software è stata tratta dalla repo:
 
