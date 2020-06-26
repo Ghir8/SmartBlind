@@ -37,7 +37,7 @@ Il Codice è stato modificato per adattarsi alle esigenze richieste.
 
 ## Configurazione
 
-Nel file `/lib/config.h` possono essere inserite le credenziali di accesso al WiFi e i tempi di salita e discesa delle tapparelle.
+Nel file `/lib/config.h` possono essere inserite le credenziali di accesso al WiFi e i tempi di salita e discesa delle tapparelle, è in oltre disponibile una modalità di debug, che abilita tutti i print su seriale, settando la variabile ```DEBUG_MODE``` a 1.
 
 Dato che il pacchetto di gestione su HomeBridge ha bisogno dell'indirizzo IP del ESP, bisogna o dichiararlo statico nel codice (o via router), oppure creare un nome di rete del dispositivo.
 
