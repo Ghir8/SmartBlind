@@ -60,3 +60,15 @@ I pin di input-output sono direttamente nel file `/src/main.cpp` e basta modific
 Per la connessione all'applicazione HomeKit ho utilizzato la piattaforma [homebridge](https://github.com/nfarina/homebridge) in quanto molto semplice da implementare e facile da utilizzare essendo in NodeJS.
 
 In particolare ho utilizzato il plugin [Minimal HTTP Blinds](https://github.com/Nicnl/homebridge-minimal-http-blinds) per comunicare con la board via chiamate HTTP asincrone di tipo GET.
+
+## Chiamate di rete
+L'ESP32 mette a disposizione queste chiamate di rete:
+
+* ``` http://IP_ESP/position ```, chiede la posizione puntuale delle tapparelle, la risposta sarà di tipo 200, con testo la posizione (espressa in percentuale).
+* ``` http://IP_ESP/state ```, chiede lo stato delle tapparelle, la risposta sarà di tipo 200, con testo:
+  * 0 = in apertura
+  * 1 = in chiusura
+  * 2 = ferma
+* ``` http://IP_ESP/set?position=POSIZIONE ```, setta la posizione desiderata della tapparella (espressa in percentuale), la risposta sarà di tipo 204.
+* ``` http://IP_ESP/timing?secondsToClose=SECONDI_CHIUSURA ```, setta i secondi impiegati dalla tapparella per chiudersi, la risposta sarà di tipo 204.
+* ``` http://IP_ESP/timing?secondsToClose=SECONDI_APERTURA ```, setta i secondi impiegati dalla tapperella per aprirsi, la risposta sarà di tipo 204.
