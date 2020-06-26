@@ -10,3 +10,8 @@
  */
 #define DEFAULT_SECONDS_TO_CLOSE 20
 #define DEFAULT_SECONDS_TO_OPEN 21
+
+/**
+ * DEBUG MODE
+**/
+#define DEBUG_MODE 0
