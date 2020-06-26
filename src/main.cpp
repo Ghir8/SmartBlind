@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 #include <ESPAsyncWebServer.h>
 #include <Config.h>
+#include <ArduinoOTA.h>
 
 #define LED_BUILTIN 2
 #define INPUT_PIN_UP 32
@@ -34,6 +35,8 @@ double currentPosition = 0.0;
 double desiredPosition = 0.0;
 bool spinning = false;
 int direction; // 1 is closing (DOWN), -1 is opening (UP)
+bool flag = false;
+bool dTap = false;
 
 // stores the last time a cycle was initiated
 unsigned long previousMillis = 0;
@@ -41,218 +44,17 @@ unsigned long previousMillis = 0;
 // calculated interval (ms) of spin cycle
 long interval = 0;
 
-
-void startSpinning(double newPosition){
-  if (newPosition != desiredPosition || newPosition != currentPosition) {
-    desiredPosition = newPosition;
-    Serial.print("current position: ");
-    Serial.println(currentPosition);
-    Serial.print("desired position: ");
-    Serial.println(desiredPosition);
-    unsigned long currentMillis = millis();
-
-    // calculate spin cycle length (ms)
-    unsigned int millisPerPercent = desiredPosition > currentPosition ? millisPerPercentOpen : millisPerPercentClose;
-    interval = (long)(abs(desiredPosition - currentPosition) * millisPerPercent);
-    Serial.print("calculated interval: ");
-    Serial.println(interval);
-
-    // set state vars
-    direction = desiredPosition > currentPosition ? 1 : -1;
-    previousMillis = currentMillis;
-    spinning = true;
-    startingPosition = currentPosition;
-    Serial.print("calculated direction: ");
-    Serial.println(direction);
-
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    // closing
-    if (direction > 0) {
-      Serial.println("closing");
-      digitalWrite(RELAY_PIN_DOWN, HIGH);
-      digitalWrite(RELAY_PIN_UP, LOW);
-    }
-    // opening
-    if (direction < 0) {
-      Serial.println("opening");
-      digitalWrite(RELAY_PIN_UP, HIGH);
-      digitalWrite(RELAY_PIN_DOWN, LOW);
-    }
+// functions
+void startSpinning(double newPosition);
+void stopSpinning();
+void doubleTap(double deltaT, int direction);
+void userInput(unsigned long startInput, double curPosInput, int direction);
+void runServer();
+void OTAStart();
+void debug(String s){
+  if (DEBUG_MODE) {
+    Serial.println(s);
   }
-}
-
-void stopSpinning(){
-  digitalWrite(RELAY_PIN_UP, HIGH);
-  digitalWrite(RELAY_PIN_DOWN, HIGH);
-  currentPosition = desiredPosition;
-  EEPROM.put(eepromAddresses.currentPosition, currentPosition);
-  EEPROM.commit();
-  spinning = false;
-  Serial.println("finished spinning!");
-  digitalWrite(LED_BUILTIN, LOW);
-}
-
-bool flag = false;
-bool dTap = false;
-
-void doubleTap(double deltaT, int direction){
-  if(deltaT > FIRST_TAP && deltaT < SECOND_TAP){
-    Serial.println("flag TRUE");
-    flag = true;
-    dTap = false;
-  } else if(deltaT > SECOND_TAP && flag){
-    double newPosition = direction > 0 ? 0 : 100;
-    Serial.print("newPosition ");
-    Serial.println(newPosition);
-    flag = false;
-    dTap = true;
-    delay(1000);
-    startSpinning(newPosition);
-  } else {
-    Serial.println("flag FALSE");
-    flag = false;
-    dTap = false;
-  }
-}
-
-void inputUp(unsigned long startInput, double curPosInput){
-  spinning = true;
-  unsigned long endInput;
-  double deltaT;
-  Serial.println("direction: UP");
-  direction = 1;
-  do{
-    delay(50);
-    //endInput = millis();
-  }while (digitalRead(INPUT_PIN_UP) == 0);
-  endInput = millis();
-  Serial.print("endInput: ");
-  Serial.println(endInput);
-  Serial.print("startInput: ");
-  Serial.println(startInput);
-  deltaT = endInput - startInput;
-  if(deltaT <= 50){
-    stopSpinning();
-    return;
-  }
-  curPosInput= curPosInput +((deltaT)/(secondsToOpen*1000))*100;
-  curPosInput = curPosInput > 100 ? 100 : curPosInput;
-  desiredPosition = curPosInput;
-  currentPosition = curPosInput;
-  doubleTap(deltaT, direction);
-  Serial.print("UP - deltaT: ");
-  Serial.println(deltaT);
-  Serial.print("UP - current position input: ");
-  Serial.println(curPosInput);
-  if (dTap) {
-    dTap = false;
-    return;
-  }else{
-    stopSpinning();
-  }
-}
-
-void inputDown(unsigned long startInput, double curPosInput){
-  spinning = true;
-  unsigned long endInput;
-  double deltaT;
-  Serial.println("direction: DOWN");
-  direction = -1;
-  do{
-    delay(50);
-  }while (digitalRead(INPUT_PIN_DOWN) == 0);
-  endInput = millis();
-  Serial.print("endInput: ");
-  Serial.println(endInput);
-  Serial.print("startInput: ");
-  Serial.println(startInput);
-  deltaT = endInput - startInput;
-  if(deltaT <= 50){
-    stopSpinning();
-    return;
-  }
-  curPosInput= curPosInput -((deltaT)/(secondsToOpen*1000))*100;
-  curPosInput = curPosInput < 0 ? 0 : curPosInput;
-  desiredPosition = curPosInput;
-  currentPosition = curPosInput;
-  doubleTap(deltaT, direction);
-  Serial.print("DOWN - deltaT: ");
-  Serial.println(deltaT);
-  Serial.print("DOWN - current position input: ");
-  Serial.println(curPosInput);
-  if (dTap) {
-    dTap = false;
-    return;
-  }else{
-    stopSpinning();
-  }
-}
-
-void runServer(){
-  // get position
-  server.on("/position", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    digitalWrite(LED_BUILTIN, LOW);
-    Serial.println("Request /position");
-    request->send(200, "text/plain", String(currentPosition));
-    digitalWrite(LED_BUILTIN, HIGH);
-  });
-
-  // set position with ?position=N (0 to 100)
-  server.on("/set", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    digitalWrite(LED_BUILTIN, LOW);
-    Serial.print("REQUEST /SET");
-    if (request->hasParam("position")) {
-      Serial.println(request->getParam("position")->value());
-      double newPosition = request->getParam("position")->value().toDouble();
-      startSpinning(newPosition);
-    }
-    request->send(204);
-    digitalWrite(LED_BUILTIN, HIGH);
-  });
-
-  // get state
-  server.on("/state", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    digitalWrite(LED_BUILTIN, LOW);
-    Serial.print("Request /state");
-    int state = spinning ? (direction == -1 ? 0 : 1) : 2;
-    Serial.println(String(state));
-    request->send(200, "text/plain", String(state));
-    digitalWrite(LED_BUILTIN, HIGH);
-  });
-
-  // update timing settings with ?secondsToClose=X&secondsToOpen=Y (positive float)
-  server.on("/timing", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    if (currentPosition > 0 && currentPosition < 100) {
-      request->send(409, "text/plain", "Cannot update timing now. Move blinds to fully closed or open position and try again.");
-      return;
-    }
-    if (request->hasParam("secondsToClose")) {
-      secondsToClose = request->getParam("secondsToClose")->value().toFloat();
-      EEPROM.put(eepromAddresses.secondsToClose, secondsToClose);
-      millisPerPercentClose = (secondsToClose * 1000) / 100;
-    }
-    if (request->hasParam("secondsToOpen")) {
-      secondsToOpen = request->getParam("secondsToOpen")->value().toFloat();
-      EEPROM.put(eepromAddresses.secondsToOpen, secondsToOpen);
-      millisPerPercentOpen = (secondsToOpen * 1000) / 100;
-    }
-    EEPROM.commit();
-    request->send(204);
-  });
-
-  // get timing settings
-  server.on("/settings", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    String response = "Seconds to close: " + String(secondsToClose) + "\nSeconds to open: " + String(secondsToOpen);
-    request->send(200, "text/plain", response);
-  });
-
-  // 404
-  server.onNotFound([](AsyncWebServerRequest *request) {
-    request->send(404);
-  });
-
-  server.begin();
 }
 
 void setup(){
@@ -281,9 +83,7 @@ void setup(){
       delay(100);
     }
   }
-  Serial.println("");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
+  debug("IP Address: "+WiFi.localIP());
 
   // get stored settings or use defaults
   bool initialized = false;
@@ -304,17 +104,16 @@ void setup(){
   millisPerPercentClose = (secondsToClose * 1000) / 100;
   millisPerPercentOpen = (secondsToOpen * 1000) / 100;
 
-  Serial.print("Initial position: ");
-  Serial.println(currentPosition);
-  Serial.print("Seconds to close: ");
-  Serial.println(secondsToClose);
-  Serial.print("Seconds to open: ");
-  Serial.println(secondsToOpen);
+  debug("Initial position: "+String(currentPosition));
+  debug("Seconds to close: "+String(secondsToClose));
+  debug("Seconds to open: "+String(secondsToOpen));
 
+  OTAStart();
   runServer();
 }
 
 void loop() {
+  ArduinoOTA.handle();
   unsigned long currentMillis = millis();
 
   if (spinning){
@@ -332,15 +131,17 @@ void loop() {
       if(digitalRead(INPUT_PIN_DOWN) == 0){
         digitalWrite(RELAY_PIN_UP, HIGH);
         digitalWrite(RELAY_PIN_DOWN, HIGH);
-        Serial.println("Input DOWN from spinning");
-        inputDown(currentMillis, currentPosition);
+        debug("Input DOWN from spinning");
+        //inputDown(currentMillis, currentPosition);
+        userInput(currentMillis, currentPosition, 1);
       }
     }else if(direction < 0){
       if(digitalRead(INPUT_PIN_UP) == 0){
         digitalWrite(RELAY_PIN_UP, HIGH);
         digitalWrite(RELAY_PIN_DOWN, HIGH);
-        Serial.println("Input UP from spinning");
-        inputUp(currentMillis, currentPosition);
+        debug("Input UP from spinning");
+        //inputUp(currentMillis, currentPosition);
+        userInput(currentMillis, currentPosition, -1);
       }
     }
     // if position has been reached or is out of range, stop spinning
@@ -352,14 +153,223 @@ void loop() {
     if(digitalRead(INPUT_PIN_UP) == 0){
       digitalWrite(RELAY_PIN_UP, HIGH);
       digitalWrite(RELAY_PIN_DOWN, HIGH);
-      Serial.println("Input UP form loop");
-      inputUp(currentMillis, currentPosition);
+      debug("Input UP form loop");
+      //inputUp(currentMillis, currentPosition);
+      userInput(currentMillis, currentPosition, -1);
     }
     if(digitalRead(INPUT_PIN_DOWN) == 0){
       digitalWrite(RELAY_PIN_UP, HIGH);
       digitalWrite(RELAY_PIN_DOWN, HIGH);
-      Serial.println("Input DOWN from loop");
-      inputDown(currentMillis, currentPosition);
+      debug("Input DOWN from loop");
+      //inputDown(currentMillis, currentPosition);
+      userInput(currentMillis, currentPosition, 1);
     }
   }
+}
+
+// START SPINNING
+
+void startSpinning(double newPosition){
+  if (newPosition != desiredPosition || newPosition != currentPosition) {
+    desiredPosition = newPosition;
+    debug("current position: "+String(currentPosition));
+    debug("desired position: "+String(desiredPosition));
+
+    unsigned long currentMillis = millis();
+
+    // calculate spin cycle length (ms)
+    unsigned int millisPerPercent = desiredPosition > currentPosition ? millisPerPercentOpen : millisPerPercentClose;
+    interval = (long)(abs(desiredPosition - currentPosition) * millisPerPercent);
+    debug("calculated interval: "+interval);
+
+    // set state vars
+    direction = desiredPosition > currentPosition ? 1 : -1;
+    previousMillis = currentMillis;
+    spinning = true;
+    startingPosition = currentPosition;
+    debug("calculated direction: "+direction);
+
+    digitalWrite(LED_BUILTIN, HIGH);
+
+    // closing
+    if (direction > 0) {
+      debug("closing");
+      digitalWrite(RELAY_PIN_DOWN, HIGH);
+      digitalWrite(RELAY_PIN_UP, LOW);
+    }
+    // opening
+    if (direction < 0) {
+      debug("opening");
+      digitalWrite(RELAY_PIN_UP, HIGH);
+      digitalWrite(RELAY_PIN_DOWN, LOW);
+    }
+  }
+}
+
+// STOP SPINNING
+
+void stopSpinning(){
+  digitalWrite(RELAY_PIN_UP, HIGH);
+  digitalWrite(RELAY_PIN_DOWN, HIGH);
+  currentPosition = desiredPosition;
+  EEPROM.put(eepromAddresses.currentPosition, currentPosition);
+  EEPROM.commit();
+  spinning = false;
+  debug("finished spinning!");
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
+// DOUBLE TAP
+
+void doubleTap(double deltaT, int direction){
+  if(deltaT > FIRST_TAP && deltaT < SECOND_TAP){
+    debug("flag TRUE");
+    flag = true;
+    dTap = false;
+  } else if(deltaT > SECOND_TAP && flag){
+    double newPosition = direction > 0 ? 0 : 100;
+    debug("newPosition "+String(newPosition));
+    flag = false;
+    dTap = true;
+    delay(1000);
+    startSpinning(newPosition);
+  } else {
+    debug("flag FALSE");
+    flag = false;
+    dTap = false;
+  }
+}
+
+// USER INPUT
+
+void userInput(unsigned long startInput, double curPosInput, int direction){
+  spinning = true;
+  unsigned long endInput;
+  double deltaT;
+  direction > 0 ? debug("Direction DOWN"): debug("Direction UP"); // 1 down, -1 up
+  if (direction > 0) {
+    do{
+      delay(50);
+    }while (digitalRead(INPUT_PIN_DOWN) == 0);
+  } else {
+    do{
+      delay(50);
+    }while (digitalRead(INPUT_PIN_UP) == 0);
+  }
+  endInput = millis();
+  deltaT = endInput - startInput;
+  if(deltaT <= 50){
+    stopSpinning();
+    return;
+  }
+  curPosInput = direction > 0 ? curPosInput -((deltaT)/(secondsToOpen*1000))*100 : curPosInput +((deltaT)/(secondsToOpen*1000))*100;
+  curPosInput = direction > 0 ? (curPosInput < 0 ? 0 : curPosInput) : (curPosInput > 100 ? 100 : curPosInput);
+  desiredPosition = curPosInput;
+  currentPosition = curPosInput;
+  doubleTap(deltaT, direction);
+  debug("Current position: "+String(currentPosition));
+  if (dTap) {
+    dTap = false;
+    return;
+  }else{
+    stopSpinning();
+  }
+}
+
+// SERVER
+
+void runServer(){
+  // get position
+  server.on("/position", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    digitalWrite(LED_BUILTIN, LOW);
+    debug("Request /position");
+    request->send(200, "text/plain", String(currentPosition));
+    digitalWrite(LED_BUILTIN, HIGH);
+  });
+
+  // set position with ?position=N (0 to 100)
+  server.on("/set", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    digitalWrite(LED_BUILTIN, LOW);
+    debug("REQUEST /SET");
+    if (request->hasParam("position")) {
+      debug(request->getParam("position")->value());
+      double newPosition = request->getParam("position")->value().toDouble();
+      startSpinning(newPosition);
+    }
+    request->send(204);
+    digitalWrite(LED_BUILTIN, HIGH);
+  });
+
+  // get state
+  server.on("/state", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    digitalWrite(LED_BUILTIN, LOW);
+    int state = spinning ? (direction == -1 ? 0 : 1) : 2;
+    debug("Request /state"+String(state));
+    request->send(200, "text/plain", String(state));
+    digitalWrite(LED_BUILTIN, HIGH);
+  });
+
+  // update timing settings with ?secondsToClose=X&secondsToOpen=Y (positive float)
+  server.on("/timing", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if (currentPosition > 0 && currentPosition < 100) {
+      request->send(409, "text/plain", "Cannot update timing now. Move blinds to fully closed or open position and try again.");
+      return;
+    }
+    if (request->hasParam("secondsToClose")) {
+      secondsToClose = request->getParam("secondsToClose")->value().toFloat();
+      EEPROM.put(eepromAddresses.secondsToClose, secondsToClose);
+      millisPerPercentClose = (secondsToClose * 1000) / 100;
+    }
+    if (request->hasParam("secondsToOpen")) {
+      secondsToOpen = request->getParam("secondsToOpen")->value().toFloat();
+      EEPROM.put(eepromAddresses.secondsToOpen, secondsToOpen);
+      millisPerPercentOpen = (secondsToOpen * 1000) / 100;
+    }
+    EEPROM.commit();
+    request->send(204);
+  });
+
+  // 404
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    request->send(404);
+  });
+
+  server.begin();
+}
+
+
+// OTA
+
+void OTAStart() {
+
+  ArduinoOTA.setHostname("esp-blids");
+  //ArduinoOTA.setPassword(""); // SET OTA PASSWORD
+
+  ArduinoOTA
+    .onStart([]() {
+     String type;
+     if (ArduinoOTA.getCommand() == U_FLASH)
+       type = "sketch";
+     else // U_SPIFFS
+       type = "filesystem";
+
+     // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+     Serial.println("Start updating " + type);
+   })
+   .onEnd([]() {
+     Serial.println("\nEnd");
+   })
+   .onProgress([](unsigned int progress, unsigned int total) {
+     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+   })
+   .onError([](ota_error_t error) {
+     Serial.printf("Error[%u]: ", error);
+     if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+     else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+     else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+     else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+     else if (error == OTA_END_ERROR) Serial.println("End Failed");
+   });
+
+  ArduinoOTA.begin();
 }
